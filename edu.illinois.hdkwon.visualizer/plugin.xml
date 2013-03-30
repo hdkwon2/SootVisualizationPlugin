@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+   <extension
+         point="org.eclipse.ui.views">
+      <view
+            category="edu.illinois.hdkwon.visualizer.category"
+            class="edu.illinois.hdkwon.visualizer.views.View"
+            id="edu.illinois.hdkwon.visualizer.views.spark"
+            name="SPARK">
+      </view>
+      <category
+            id="edu.illinois.hdkwon.visualizer.category"
+            name="Soot Points-to Analysiss">
+      </category>
+   </extension>
+   <extension
+         point="org.eclipse.help.contexts">
+      <contexts
+            file="contexts.xml">
+      </contexts>
+   </extension>
+   <extension
+         point="org.eclipse.ui.commands">
+      <command
+            defaultHandler="edu.illinois.hdkwon.visualizer.handlers.SPARKHandler"
+            id="edu.illinois.hdkwon.visualizer.spark"
+            name="SPARK">
+      </command>
+   </extension>
+   <extension
+         point="org.eclipse.ui.menus">
+      <menuContribution
+            allPopups="false"
+            locationURI="popup:org.eclipse.jdt.ui.PackageExplorer">
+         <menu
+               label="Run Points-to Analysis with Visualization">
+            <command
+                  commandId="edu.illinois.hdkwon.visualizer.spark"
+                  label="Run SPARK"
+                  style="push">
+            </command>
+         </menu>
+      </menuContribution>
+   </extension>
+   <extension
+         point="org.eclipse.ui.perspectiveExtensions">
+      <perspectiveExtension
+            targetID="org.eclipse.jdt.ui.JavaPerspective">
+      </perspectiveExtension>
+   </extension>
+
+</plugin>
