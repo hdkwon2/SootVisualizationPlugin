@@ -27,12 +27,7 @@ import soot.tagkit.LineNumberTag;
 
 public class PointsToRunner {
 	
-	// Make sure we get line numbers and whole program analysis
-	static {
-		soot.options.Options.v().set_keep_line_number(true);
-		soot.options.Options.v().set_whole_program(true);
-		soot.options.Options.v().setPhaseOption("cg","verbose:true");
-	}
+	
 	
 	static SootClass sootClass;
 	
@@ -43,15 +38,20 @@ public class PointsToRunner {
 		return c;
 	}
 	
-	public static void runAnalysis(ArrayList<String> settings) {
-		String [] classes = settings.get(0).split(" ");
+	public static void runAnalysis(String classPath) {
+	
+		// Set soot options
+		soot.options.Options.v().set_keep_line_number(true);
+		soot.options.Options.v().set_whole_program(true);
+		soot.options.Options.v().setPhaseOption("cg","verbose:true");
+		soot.options.Options.v().setPhaseOption("jb", "use-original-names:true");
+		soot.options.Options.v().set_soot_classpath(classPath);
 		
-		for(String className : classes){
-			System.out.println(className);
-			loadClass(className, false);
-		}
+		loadClass("Container", false);
+		loadClass("Item", false);
 		
-		sootClass = loadClass(settings.get(1), true);
+		
+		sootClass = loadClass("Test1", true);
 		
 		soot.Scene.v().loadNecessaryClasses();
 		soot.Scene.v().setEntryPoints(EntryPoints.v().all());
@@ -60,7 +60,7 @@ public class PointsToRunner {
 		setSparkPointsToAnalysis();
 
 		SootField f = getField("Container","item");		
-		Map/*<Local>*/ ls = getLocals(sootClass,settings.get(2),"Container");
+		Map/*<Local>*/ ls = getLocals(sootClass,"go","Container");
 		
 		printLocalIntersects(ls);	
 		printFieldIntersects(ls,f);		
@@ -175,7 +175,7 @@ public class PointsToRunner {
 						Object o = bi.next();
 						if (o instanceof ValueBox) {
 							Value v = ((ValueBox)o).getValue();
-							if (/*v.getType().toString().equals(typename) &&*/ v instanceof Local)
+							if (v.getType().toString().equals(typename) && v instanceof Local)
 								res.put(new Integer(line),v);
 						}
 					}					

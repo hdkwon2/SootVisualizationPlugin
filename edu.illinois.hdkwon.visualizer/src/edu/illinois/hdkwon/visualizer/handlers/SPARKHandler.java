@@ -30,14 +30,18 @@ import edu.illinois.hdkwon.visualizer.views.View;
 
 public class SPARKHandler extends AbstractHandler{
 
-	ExecutionEvent myEvent;
-	Shell shell;
-	String path;
+	private ExecutionEvent myEvent;
+	private Shell shell;
+	private String absolutePathToWorkspace;
 	
 	@Override
 	public Object execute(ExecutionEvent event) throws ExecutionException {
 		myEvent = event;
 		shell = HandlerUtil.getActiveShell(event);
+		// get the absolute path of the workspace	
+		IWorkspace workspace = ResourcesPlugin.getWorkspace();
+		absolutePathToWorkspace = workspace.getRoot().getLocation().toFile().getAbsolutePath();
+		
 		ISelection sel = HandlerUtil.getActiveMenuSelection(event);
 		IStructuredSelection selection = (IStructuredSelection) sel;
 		
@@ -45,51 +49,40 @@ public class SPARKHandler extends AbstractHandler{
 		if(firstElement instanceof IJavaElement){
 			IJavaElement jElement = (IJavaElement) firstElement;
 			IJavaProject jProject = jElement.getJavaProject();
-			// get the absolute path of the workspace
-			IWorkspace workspace = ResourcesPlugin.getWorkspace();
-			String absolute = workspace.getRoot().getLocation().toFile().getAbsolutePath();
 			
-			String classPath = ""; 
-			try {
-				// add the bin folder
-				classPath = absolute+ jProject.getOutputLocation().toString();
-				// add the class path of the target project
-				for(IClasspathEntry entry : jProject.getRawClasspath()){
-					classPath += File.pathSeparator;
-					classPath += entry.getPath().toString();
-				}
-				//add jre libraries
-				for(IClasspathEntry entry: PreferenceConstants.getDefaultJRELibrary()){
-					IClasspathContainer container= JavaCore.getClasspathContainer(entry.getPath(), jProject);
-					for(IClasspathEntry e :container.getClasspathEntries()){
-						classPath += File.pathSeparator;
-						classPath += e.getPath().toString();
-					}
-				}
-			} catch (JavaModelException e) {
-				e.printStackTrace();
-			}
+			String classPath = buildClassPath(jProject);
 			
-			SootRunner.runSoot(classPath);
+			PointsToRunner.runAnalysis(classPath);
 		}
-//		SettingDialog.promptSetupShell(shell, this);
 		
 		return null;
 	}
 
-	/* Called when the OK button on setting dialog is clicked */
-	public void okCallBack(ArrayList<String> settings){
-		try{
-			System.out.println(System.getProperty("java.class.path"));
-			PointsToRunner.runAnalysis(settings);
-			Map map = PointsToRunner.getPointsToSet(settings.get(2), "Container");
-			setView(map);
-		}catch(Exception ex){
-//			MessageDialog.openError(shell, "Error", "Error occured");
-			ex.printStackTrace();
+
+	private String buildClassPath(IJavaProject jProject){
+		String classPath = ""; 
+		try {
+			// add the bin folder
+			classPath = absolutePathToWorkspace + jProject.getOutputLocation().toString();
+			// add the class path of the target project
+			for(IClasspathEntry entry : jProject.getRawClasspath()){
+				classPath += File.pathSeparator;
+				classPath += entry.getPath().toString();
+			}
+			//add jre libraries
+			for(IClasspathEntry entry: PreferenceConstants.getDefaultJRELibrary()){
+				IClasspathContainer container= JavaCore.getClasspathContainer(entry.getPath(), jProject);
+				for(IClasspathEntry e :container.getClasspathEntries()){
+					classPath += File.pathSeparator;
+					classPath += e.getPath().toString();
+				}
+			}
+		} catch (JavaModelException e) {
+			e.printStackTrace();
 		}
+		
+		return classPath;
 	}
-	
 
 	
 	private void setView(Map map){
