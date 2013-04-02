@@ -2,7 +2,6 @@ package edu.illinois.hdkwon.visualizer.handlers;
 
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.Map;
 
 import org.eclipse.core.commands.AbstractHandler;
@@ -10,14 +9,13 @@ import org.eclipse.core.commands.ExecutionEvent;
 import org.eclipse.core.commands.ExecutionException;
 import org.eclipse.core.resources.IWorkspace;
 import org.eclipse.core.resources.ResourcesPlugin;
-import org.eclipse.core.runtime.CoreException;
 import org.eclipse.jdt.core.IClasspathContainer;
 import org.eclipse.jdt.core.IClasspathEntry;
+import org.eclipse.jdt.core.ICompilationUnit;
 import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
-import org.eclipse.jdt.launching.JavaRuntime;
 import org.eclipse.jdt.ui.PreferenceConstants;
 import org.eclipse.jface.viewers.ISelection;
 import org.eclipse.jface.viewers.IStructuredSelection;
@@ -46,19 +44,23 @@ public class SPARKHandler extends AbstractHandler{
 		IStructuredSelection selection = (IStructuredSelection) sel;
 		
 		Object firstElement = selection.getFirstElement();
-		if(firstElement instanceof IJavaElement){
-			IJavaElement jElement = (IJavaElement) firstElement;
-			IJavaProject jProject = jElement.getJavaProject();
-			
+		/* Selection must be the main class that is to be analyzed */
+		if(firstElement instanceof ICompilationUnit){
+			ICompilationUnit jClass = (ICompilationUnit) firstElement;
+			IJavaProject jProject = jClass.getJavaProject();
+		
 			String classPath = buildClassPath(jProject);
-			
-			PointsToRunner.runAnalysis(classPath);
+
+			Map localSet = PointsToRunner.runAnalysis(classPath, jProject.getPath().toString());
+			PointsToRunner.printLocalIntersects(localSet);
+			setView(PointsToRunner.getPointsToSet(localSet),
+					PointsToRunner.getFieldPointsToSet(localSet,
+							PointsToRunner.getField("Container", "item")));
 		}
 		
 		return null;
 	}
-
-
+	
 	private String buildClassPath(IJavaProject jProject){
 		String classPath = ""; 
 		try {
@@ -67,7 +69,10 @@ public class SPARKHandler extends AbstractHandler{
 			// add the class path of the target project
 			for(IClasspathEntry entry : jProject.getRawClasspath()){
 				classPath += File.pathSeparator;
-				classPath += entry.getPath().toString();
+				if(entry.getEntryKind() == IClasspathEntry.CPE_SOURCE)
+					classPath += absolutePathToWorkspace + entry.getPath().toString();
+				else 
+					classPath += entry.getPath().toString();
 			}
 			//add jre libraries
 			for(IClasspathEntry entry: PreferenceConstants.getDefaultJRELibrary()){
@@ -85,13 +90,13 @@ public class SPARKHandler extends AbstractHandler{
 	}
 
 	
-	private void setView(Map map){
+	private void setView(Map lps, Map fps){
 		IViewPart findView = HandlerUtil.getActiveWorkbenchWindow(myEvent)
 		        .getActivePage().findView("edu.illinois.hdkwon.visualizer.views.spark");
 
 		View view = (View) findView;
 	
-		view.setView(map);
+		view.setView(lps, fps);
 		
 		/* Loads up the view programatically */
 		try {

@@ -1,6 +1,5 @@
 package edu.illinois.hdkwon.visualizer.views;
 
-
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -20,59 +19,77 @@ import org.eclipse.zest.layouts.LayoutStyles;
 import org.eclipse.zest.layouts.algorithms.SpringLayoutAlgorithm;
 import org.eclipse.zest.layouts.algorithms.TreeLayoutAlgorithm;
 
+import soot.Local;
 import soot.jimple.spark.pag.Node;
 
 public class View extends ViewPart {
-	 public static final String ID = "de.vogella.zest.first.view";
-	  private Graph graph;
-	  private int layout = 1;
-	  private boolean show = false;
-	  
-	  public void createPartControl(Composite parent) {
+	public static final String ID = "de.vogella.zest.first.view";
+	private Graph graph;
+	private int layout = 1;
+	private boolean show = false;
+	private HashMap<Node, GraphNode> graphMap;
+
+	public void createPartControl(Composite parent) {
+
+		// Graph will hold all other objects
+		graph = new Graph(parent, SWT.NONE);
+	}
+
+	public void setLayoutManager() {
+		switch (layout) {
+		case 1:
+			graph.setLayoutAlgorithm(new TreeLayoutAlgorithm(
+					LayoutStyles.NO_LAYOUT_NODE_RESIZING), true);
+			layout++;
+			break;
+		case 2:
+			graph.setLayoutAlgorithm(new SpringLayoutAlgorithm(
+					LayoutStyles.NO_LAYOUT_NODE_RESIZING), true);
+			layout = 1;
+			break;
+
+		}
+
+	}
+
+	public void setView(Map localPointsTo, Map fieldPointsTo){
+		graphMap = new HashMap<Node, GraphNode>();
 		
-			// Graph will hold all other objects
-			graph = new Graph(parent, SWT.NONE); 
-	  }
-
-	  public void setLayoutManager() {
-	    switch (layout) {
-	    case 1:
-	      graph.setLayoutAlgorithm(new TreeLayoutAlgorithm(LayoutStyles.NO_LAYOUT_NODE_RESIZING), true);
-	      layout++;
-	      break;
-	    case 2:
-	      graph.setLayoutAlgorithm(new SpringLayoutAlgorithm(LayoutStyles.NO_LAYOUT_NODE_RESIZING), true);
-	      layout = 1;
-	      break;
-
-	    }
-
-	  }
-
-	  public void setView(Map map){
-		// Now a few nodes
-		HashMap<Node, GraphNode> graphMap = new HashMap<Node, GraphNode>();
-		Iterator mi = map.entrySet().iterator();
+		// build graph for locals
+		Iterator mi = localPointsTo.entrySet().iterator();
 		while (mi.hasNext()) {
-			Map.Entry<Integer, Set> entry = (Entry) mi.next();
-			int lineNum = entry.getKey();
+			Map.Entry<String, Set> entry = (Entry) mi.next();
+			String name = entry.getKey();
 			Set set = entry.getValue();
 			Iterator si = set.iterator();
-			GraphNode local = new GraphNode(graph, SWT.NONE, lineNum +"");
+			GraphNode local = new GraphNode(graph, SWT.NONE, name);
+			Set fps = (Set)fieldPointsTo.get(name);
 			while (si.hasNext()) {
 
 				Node node = (Node) si.next();
-				GraphNode obj;
-				if (graphMap.containsKey(node)) {
-					obj = graphMap.get(node);
-				} else{
-					obj = new GraphNode(graph, SWT.NONE, node.getNumber()+", " + node.getType().toString());
-					graphMap.put(node, obj);
-				}
+				GraphNode gNode = getGraphNode(node);
+
 				new GraphConnection(graph, ZestStyles.CONNECTIONS_DIRECTED,
-						local, obj);
+						local, gNode);
+				
+				Iterator fpsi = fps.iterator();
+				while (fpsi.hasNext()) {
+					Node node2 = (Node) fpsi.next();
+					GraphNode gNode2 = getGraphNode(node2);
+					GraphConnection connection = new GraphConnection(graph,
+							ZestStyles.CONNECTIONS_DIRECTED, gNode, gNode2);
+					connection.setText("item");
+				}
 			}
+			
+			if(fps != null){
+				
+				
+			}
+			
+			
 		}
+		
 //					GraphNode node1 = new GraphNode(graph, SWT.NONE, "Jim");
 //					GraphNode node2 = new GraphNode(graph, SWT.NONE, "Jack");
 //					GraphNode node3 = new GraphNode(graph, SWT.NONE, "Joe");
@@ -107,8 +124,22 @@ public class View extends ViewPart {
 
 					}); 
 	  }
+
+	private GraphNode getGraphNode(Node node) {
+		GraphNode obj;
+		if (graphMap.containsKey(node)) {
+			obj = graphMap.get(node);
+		} else {
+			obj = new GraphNode(graph, SWT.NONE, node.getNumber() + ", "
+					+ node.getType().toString());
+			graphMap.put(node, obj);
+		}
+
+		return obj;
+	}
+
 	/** * Passing the focus request to the viewer's control. */
 
-	  public void setFocus() {
-	  }
+	public void setFocus() {
+	}
 }
