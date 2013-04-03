@@ -2,6 +2,7 @@ package edu.illinois.hdkwon.visualizer.handlers;
 
 
 import java.io.File;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.eclipse.core.commands.AbstractHandler;
@@ -12,7 +13,6 @@ import org.eclipse.core.resources.ResourcesPlugin;
 import org.eclipse.jdt.core.IClasspathContainer;
 import org.eclipse.jdt.core.IClasspathEntry;
 import org.eclipse.jdt.core.ICompilationUnit;
-import org.eclipse.jdt.core.IJavaElement;
 import org.eclipse.jdt.core.IJavaProject;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.JavaModelException;
@@ -49,13 +49,14 @@ public class SPARKHandler extends AbstractHandler{
 			ICompilationUnit jClass = (ICompilationUnit) firstElement;
 			IJavaProject jProject = jClass.getJavaProject();
 		
+			String mainClass = jClass.getElementName().split("\\.")[0];
 			String classPath = buildClassPath(jProject);
 
-			Map localSet = PointsToRunner.runAnalysis(classPath, jProject.getPath().toString());
-			PointsToRunner.printLocalIntersects(localSet);
-			setView(PointsToRunner.getPointsToSet(localSet),
-					PointsToRunner.getFieldPointsToSet(localSet,
-							PointsToRunner.getField("Container", "item")));
+			Map localMap = PointsToRunner.runAnalysis(classPath, jProject
+					.getPath().toString(), mainClass);
+//			PointsToRunner.printLocalIntersects(localSet);
+			setView(localMap,
+					new HashMap());
 		}
 		
 		return null;

@@ -15,6 +15,7 @@ import soot.Scene;
 import soot.SootClass;
 import soot.SootField;
 import soot.SootMethod;
+import soot.Type;
 import soot.Value;
 import soot.ValueBox;
 import soot.jimple.JimpleBody;
@@ -24,7 +25,6 @@ import soot.jimple.spark.pag.Node;
 import soot.jimple.spark.sets.P2SetVisitor;
 import soot.jimple.spark.sets.PointsToSetInternal;
 import soot.options.Options;
-import soot.tagkit.LineNumberTag;
 
 public class PointsToRunner {
 	
@@ -39,7 +39,7 @@ public class PointsToRunner {
 		return c;
 	}
 	
-	public static Map runAnalysis(String classPath, String dir) {
+	public static Map runAnalysis(String classPath, String dir, String mainClass) {
 	
 		// Set soot options
 		soot.options.Options.v().set_keep_line_number(true);
@@ -49,14 +49,23 @@ public class PointsToRunner {
 		soot.options.Options.v().set_process_dir(Arrays.asList(new String[]{dir}));		
 		soot.options.Options.v().set_soot_classpath(classPath);
 				
-		sootClass = loadClass("Test1", true);
+		sootClass = loadClass(mainClass, true);
 		soot.Scene.v().loadNecessaryClasses();
 		soot.Scene.v().setEntryPoints(EntryPoints.v().all());
 
 		setSparkPointsToAnalysis();
 
 		SootField f = getField("Container","item");
-		return getLocals(sootClass,"go","Container");
+		Map map = getLocals(sootClass, "go");
+		Map<String, Map> res = new HashMap<String, Map>();
+		Iterator mi = map.entrySet().iterator();
+		while(mi.hasNext()){
+			Entry entry = (Entry)mi.next();
+			String type = (String) entry.getKey();
+			res.put(type, getPointsToSet((Set)entry.getValue()));
+		}
+		
+		return res;
 		
 	}
 	
@@ -101,16 +110,15 @@ public class PointsToRunner {
 	}
 	
 
-	public static Map getPointsToSet(Map ls){
+	public static Map getPointsToSet(Set ls){
 
 		Map<String, Set> map = new HashMap<String, Set>();
 		
 		soot.PointsToAnalysis pta = Scene.v().getPointsToAnalysis();
-		Iterator mi = ls.entrySet().iterator();
+		Iterator mi = ls.iterator();
 		
 		while(mi.hasNext()){
-			Map.Entry<Integer,Local> entry = (Entry) mi.next();
-			final Local local = entry.getValue();
+			final Local local = (Local) mi.next();
 			PointsToSet pts = pta.reachingObjects(local);
 			final Set<Node> set =new HashSet<Node>();
 			
@@ -157,7 +165,7 @@ public class PointsToRunner {
 		return map;
 	}
 	
-	private static int getLineNumber(Stmt s) {
+/*	private static int getLineNumber(Stmt s) {
 		Iterator ti = s.getTags().iterator();
 		while (ti.hasNext()) {
 			Object o = ti.next();
@@ -165,7 +173,7 @@ public class PointsToRunner {
 				return Integer.parseInt(o.toString());
 		}
 		return -1;
-	}
+	}*/
 	
 	public static SootField getField(String classname, String fieldname) {
 		Collection app = Scene.v().getApplicationClasses();
@@ -178,36 +186,43 @@ public class PointsToRunner {
 		throw new RuntimeException("Field "+fieldname+" was not found in class "+classname);
 	}
 	
-	private static Map/*<Integer,Local>*/ getLocals(SootClass sc, String methodname, String typename) {
-		Map res = new HashMap();
+
+	private static Map/*<String, Set<Local>>*/ getLocals(SootClass sc, String methodname) {
+		Map<String, Set<Local>> localMap = new HashMap<String, Set<Local>>();
 		Iterator mi = sc.getMethods().iterator();
 		int x = 0;
 		while (mi.hasNext()) {
 			SootMethod sm = (SootMethod)mi.next();
 			System.err.println(sm.getName());
-			if (true && sm.getName().equals(methodname) && sm.isConcrete()) {
+			if (sm.getName().equals(methodname) && sm.isConcrete()) {
 				JimpleBody jb = (JimpleBody)sm.retrieveActiveBody();
 				Iterator ui = jb.getUnits().iterator();
 				while (ui.hasNext()) {
 					Stmt s = (Stmt)ui.next();						
-					int line = getLineNumber(s);
-					// find definitions
-					
 					Iterator bi = s.getDefBoxes().iterator();
 					while (bi.hasNext()) {
 						Object o = bi.next();
 						if (o instanceof ValueBox) {
 							Value v = ((ValueBox)o).getValue();
-							System.out.println(v);
-							if (/*v.getType().toString().equals(typename) &&*/ v instanceof Local)
-								res.put(x++,v);
+							if ( v instanceof Local){
+								String type = v.getType().toString();
+								if(localMap.containsKey(type)){
+									localMap.get(type).add((Local)v);
+								}else{
+									Set set = new HashSet();
+									set.add(v);
+									localMap.put(type, set);
+								}
+
+							}
+								
 						}
 					}					
 				}
 			}
 		}
 		
-		return res;
+		return localMap;
 	}
 	
 	public static void printLocalIntersects(Map/*<Integer,Local>*/ ls) {

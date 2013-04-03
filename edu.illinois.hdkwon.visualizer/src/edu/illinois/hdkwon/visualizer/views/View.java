@@ -1,25 +1,22 @@
 package edu.illinois.hdkwon.visualizer.views;
 
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.ui.part.ViewPart;
+import org.eclipse.zest.core.viewers.GraphViewer;
 import org.eclipse.zest.core.widgets.Graph;
-import org.eclipse.zest.core.widgets.GraphConnection;
 import org.eclipse.zest.core.widgets.GraphNode;
 import org.eclipse.zest.core.widgets.ZestStyles;
+import org.eclipse.zest.layouts.LayoutAlgorithm;
 import org.eclipse.zest.layouts.LayoutStyles;
 import org.eclipse.zest.layouts.algorithms.SpringLayoutAlgorithm;
 import org.eclipse.zest.layouts.algorithms.TreeLayoutAlgorithm;
 
-import soot.Local;
 import soot.jimple.spark.pag.Node;
 
 public class View extends ViewPart {
@@ -53,47 +50,16 @@ public class View extends ViewPart {
 	}
 
 	public void setView(Map localPointsTo, Map fieldPointsTo){
-		graphMap = new HashMap<Node, GraphNode>();
-		
-		// build graph for locals
-		Iterator mi = localPointsTo.entrySet().iterator();
-		while (mi.hasNext()) {
-			Map.Entry<String, Set> entry = (Entry) mi.next();
-			String name = entry.getKey();
-			Set set = entry.getValue();
-			Iterator si = set.iterator();
-			GraphNode local = new GraphNode(graph, SWT.NONE, name);
-			Set fps = (Set)fieldPointsTo.get(name);
-			while (si.hasNext()) {
 
-				Node node = (Node) si.next();
-				GraphNode gNode = getGraphNode(node);
-
-				new GraphConnection(graph, ZestStyles.CONNECTIONS_DIRECTED,
-						local, gNode);
-				
-				Iterator fpsi = fps.iterator();
-				while (fpsi.hasNext()) {
-					Node node2 = (Node) fpsi.next();
-					GraphNode gNode2 = getGraphNode(node2);
-					GraphConnection connection = new GraphConnection(graph,
-							ZestStyles.CONNECTIONS_DIRECTED, gNode, gNode2);
-					connection.setText("item");
-				}
-			}
-			
-			if(fps != null){
-				
-				
-			}
-			
-			
-		}
+		GraphViewer viewer = new GraphViewer(graph.getParent(), SWT.BORDER);
+		viewer.setContentProvider(new SootNodeContentProvider());
+		viewer.setConnectionStyle(ZestStyles.CONNECTIONS_DIRECTED);
+		SPARKModelContentProvider model = new SPARKModelContentProvider(localPointsTo, fieldPointsTo);
+		viewer.setInput(model.buildFullGraph());
+		LayoutAlgorithm layout = new SpringLayoutAlgorithm(LayoutStyles.NO_LAYOUT_NODE_RESIZING);
+		viewer.setLayoutAlgorithm(layout, true);
+		viewer.applyLayout();
 		
-//					GraphNode node1 = new GraphNode(graph, SWT.NONE, "Jim");
-//					GraphNode node2 = new GraphNode(graph, SWT.NONE, "Jack");
-//					GraphNode node3 = new GraphNode(graph, SWT.NONE, "Joe");
-//					GraphNode node4 = new GraphNode(graph, SWT.NONE, "Bill");
 //					// Lets have a directed connection
 //					new GraphConnection(graph, ZestStyles.CONNECTIONS_DIRECTED, node1,
 //							node2);
@@ -112,7 +78,7 @@ public class View extends ViewPart {
 //							.getSystemColor(SWT.COLOR_RED));
 //					graphConnection.setLineWidth(3);
 
-					graph.setLayoutAlgorithm(new SpringLayoutAlgorithm(
+/*					graph.setLayoutAlgorithm(new SpringLayoutAlgorithm(
 							LayoutStyles.NO_LAYOUT_NODE_RESIZING), true);
 					// Selection listener on graphConnect or GraphNode is not supported
 					// see https://bugs.eclipse.org/bugs/show_bug.cgi?id=236528
@@ -122,7 +88,7 @@ public class View extends ViewPart {
 							System.out.println(e);
 						}
 
-					}); 
+					}); */
 	  }
 
 	private GraphNode getGraphNode(Node node) {
