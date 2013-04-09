@@ -33,4 +33,25 @@ public class FieldToObjectEdge implements SootGraphEdge{
 	public String toString() {
 		return getName();
 	}
+	
+	@Override
+	public boolean equals(Object other){
+		if(other instanceof FieldToObjectEdge){
+			FieldToObjectEdge edge = (FieldToObjectEdge) other;
+			return (edge.getSource().equals(source) || edge.source == source)
+					&& (edge.getDestination().equals(destination) || edge.destination == destination)
+					&& (edge.getName().equals(name) || edge.name == name);
+		}
+		return false;
+	}
+	
+	@Override
+	public int hashCode(){
+		final int prime = 31;
+		int result =1;
+		result = result * prime + ((source == null) ? 0 : source.hashCode());
+		result = result * prime + ((destination == null) ? 0 : destination.hashCode());
+		result = result * prime + ((name == null) ? 0 : name.hashCode());
+		return 1;
+	}
 }

@@ -52,11 +52,11 @@ public class SPARKHandler extends AbstractHandler{
 			String mainClass = jClass.getElementName().split("\\.")[0];
 			String classPath = buildClassPath(jProject);
 
-			Map localMap = PointsToRunner.runAnalysis(classPath, jProject
+			PointsToRunner.runAnalysis(classPath, jProject
 					.getPath().toString(), mainClass);
-//			PointsToRunner.printLocalIntersects(localSet);
-			setView(localMap,
-					new HashMap());
+			
+			
+			setView(PointsToRunner.getLocalPointsTo(), PointsToRunner.getFieldPointsTo());
 		}
 		
 		return null;

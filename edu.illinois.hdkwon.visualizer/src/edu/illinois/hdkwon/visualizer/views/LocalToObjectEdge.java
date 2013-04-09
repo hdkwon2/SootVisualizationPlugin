@@ -29,5 +29,23 @@ public class LocalToObjectEdge implements SootGraphEdge{
 	public String toString(){
 		return "";
 	}
-
+	
+	@Override
+	public boolean equals(Object other){
+		if(other instanceof LocalToObjectEdge){
+			LocalToObjectEdge edge = (LocalToObjectEdge) other;
+			return (edge.getSource().equals(source) || edge.source == source)
+					&& (edge.getDestination().equals(destination) || edge.destination == destination);
+		}
+		return false;
+	}
+	
+	@Override
+	public int hashCode(){
+		final int prime = 31;
+		int result =1;
+		result = result * prime + ((source == null) ? 0 : source.hashCode());
+		result = result * prime + ((destination == null) ? 0 : destination.hashCode());
+		return result;
+	}
 }

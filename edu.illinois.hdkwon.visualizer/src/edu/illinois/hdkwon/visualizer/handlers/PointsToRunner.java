@@ -29,6 +29,8 @@ import soot.options.Options;
 public class PointsToRunner {
 	
 	
+	private static Map localPointsTo;
+	private static Map fieldPointsTo;
 	
 	static SootClass sootClass;
 	
@@ -39,12 +41,12 @@ public class PointsToRunner {
 		return c;
 	}
 	
-	public static Map runAnalysis(String classPath, String dir, String mainClass) {
+	public static void runAnalysis(String classPath, String dir, String mainClass) {
 	
 		// Set soot options
 		soot.options.Options.v().set_keep_line_number(true);
 		soot.options.Options.v().set_whole_program(true);
-		soot.options.Options.v().setPhaseOption("cg","verbose:true");
+		soot.options.Options.v().setPhaseOption("cg","verbose:false");
 		soot.options.Options.v().set_src_prec(Options.src_prec_java);
 		soot.options.Options.v().set_process_dir(Arrays.asList(new String[]{dir}));		
 		soot.options.Options.v().set_soot_classpath(classPath);
@@ -57,16 +59,22 @@ public class PointsToRunner {
 
 		SootField f = getField("Container","item");
 		Map map = getLocals(sootClass, "go");
-		Map<String, Map> res = new HashMap<String, Map>();
+		localPointsTo = new HashMap<String, Map>();
+		fieldPointsTo = getFieldPointsToSet(map);
 		Iterator mi = map.entrySet().iterator();
 		while(mi.hasNext()){
 			Entry entry = (Entry)mi.next();
 			String type = (String) entry.getKey();
-			res.put(type, getPointsToSet((Set)entry.getValue()));
+			localPointsTo.put(type, getPointsToSet((Set)entry.getValue()));
 		}
-		
-		return res;
-		
+	}
+	
+	public static Map getLocalPointsTo(){
+		return localPointsTo;
+	}
+	
+	public static Map getFieldPointsTo(){
+		return fieldPointsTo;
 	}
 	
 	static void setSparkPointsToAnalysis() {
@@ -135,34 +143,49 @@ public class PointsToRunner {
 			map.put(local.getName(), set);
 		}
 		
-		
 		return map;
 	}
 	
-	public static Map getFieldPointsToSet(Map/*<Integer,Local>*/ ls, SootField f) {
+	public static Map/* <className, Map<localName, Map<fieldName, Set<Node>>>>*/getFieldPointsToSet(
+			Map/* <String, Set> */ls) {
 		HashMap<String, Set> map = new HashMap<String, Set>();
-		soot.PointsToAnalysis pta = Scene.v().getPointsToAnalysis();
+	soot.PointsToAnalysis pta = Scene.v().getPointsToAnalysis();
 		
-		Iterator i1 = ls.entrySet().iterator();
-		while (i1.hasNext()) {
-			Map.Entry e1 = (Map.Entry)i1.next();
-			int p1 = ((Integer)e1.getKey()).intValue();
-			Local l1 = (Local)e1.getValue();
-			PointsToSet pts = pta.reachingObjects(l1,f);
+		Collection app = Scene.v().getApplicationClasses();
+		Iterator ci = app.iterator();
+		Map typeToLocal = new HashMap();
+		while (ci.hasNext()) {
+			SootClass sc = (SootClass)ci.next();
+			String className = sc.getName();
 			
-			final Set<Node> set =new HashSet<Node>();
-			((PointsToSetInternal)pts).forall(new P2SetVisitor() {
-				
-				@Override
-				public void visit(Node n) {
-					// TODO Auto-generated method stub
-					set.add(n);
+			Set s1 = (Set)ls.get(className);
+			if(s1 != null){
+				Map localToField = new HashMap();
+				Iterator s1i = s1.iterator();
+				while(s1i.hasNext()){
+					Local local = (Local) s1i.next();
+					Map fieldToNode = new HashMap();
+					Iterator fi = sc.getFields().iterator();
+					while(fi.hasNext()){
+						SootField field = (SootField) fi.next();
+						PointsToSet pts = pta.reachingObjects(local, field);
+						final Set nodeSet = new HashSet();
+						((PointsToSetInternal) pts).forall(new P2SetVisitor(){
+
+							@Override
+							public void visit(Node n) {
+								nodeSet.add(n);
+							}
+							
+						});
+						fieldToNode.put(field.getName(), nodeSet);
+					}
+					localToField.put(local.getName(), fieldToNode);
 				}
-			});
-			map.put(l1.getName(), set);
+				typeToLocal.put(className, localToField);
+			}
 		}
-		
-		return map;
+		return typeToLocal;
 	}
 	
 /*	private static int getLineNumber(Stmt s) {

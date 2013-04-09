@@ -29,4 +29,21 @@ public class LocalNode implements SootGraphNode{
 	public String toString(){
 		return getName()+"(local)";
 	}
+	
+	@Override
+	public boolean equals(Object other){
+		if(other instanceof LocalNode){
+			LocalNode node = (LocalNode) other;
+			return (node.getName().equals(name) || node.name == name);
+		}
+		return false;
+	}
+	
+	@Override
+	public int hashCode(){
+		final int prime = 31;
+		int result =1;
+		result = result * prime + ((name == null) ? 0 : name.hashCode());
+		return result;
+	}
 }
