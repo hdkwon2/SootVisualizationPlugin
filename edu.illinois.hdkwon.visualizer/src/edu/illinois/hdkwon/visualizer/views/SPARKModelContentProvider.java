@@ -13,17 +13,21 @@ public class SPARKModelContentProvider {
 	
 	private final Map<String, Map<String, Set>> localPointsTo;
 	private final Map<String, Map<String, Set>> fieldPointsTo;
-
+	private final Map<Node, ObjectNode> objectNodeMap;
+	private final Map<String, LocalNode> localNodeMap;
+	
 	public SPARKModelContentProvider(Map localPointsTo, Map fieldPointsTo){
 		this.localPointsTo = localPointsTo;
 		this.fieldPointsTo = fieldPointsTo;
+		this.objectNodeMap = new HashMap<Node, ObjectNode>();
+		this.localNodeMap = new HashMap<String, LocalNode>();
 	}
 	
 	/**
 	 * Builds the full graph representing given local and field points-to sets. 
 	 * @return Set of edges
 	 */
-	public Set<SootGraphEdge> buildFullGraph(){
+/*	public Set<SootGraphEdge> buildFullGraph(){
 		Set<SootGraphEdge> edges = new HashSet<SootGraphEdge>();
 		Map<Node, ObjectNode> graphNodeMap = new HashMap<Node, ObjectNode>();
 		
@@ -71,6 +75,7 @@ public class SPARKModelContentProvider {
 		}
 		return edges;
 	}
+*/
 	
 	
 	/**
@@ -79,51 +84,98 @@ public class SPARKModelContentProvider {
 	 * @param typeName
 	 * @return
 	 */
-	public Set<SootGraphEdge> filterGraph(String methodName, String typeName, String localName, String fieldName){
-		Set res = new HashSet();
-		Map graphNodeMap = new HashMap();
-		Map typeMap = localPointsTo.get(typeName);
-		if(typeMap == null) return res;
+	public Set<SootGraphEdge> buildGraph(String className, String methodName,
+			String typeName, String localName, String fieldName) {
+		Set edgeSet = new HashSet();
 		
-		Set localSet = (Set) typeMap.get(localName);
-		if(localSet == null) return res;
-		
-		typeMap = fieldPointsTo.get(typeName);
-		if(typeMap == null) return res;
-		
-		Map localMap = (Map) typeMap.get(localName);
-		if(localMap == null) return res;
-		
-		Set fieldSet = (Set) localMap.get(fieldName);
-		if(fieldSet == null) return res;
-		
-		LocalNode source = new LocalNode(localName);
-		Iterator lsi = localSet.iterator();
-		while(lsi.hasNext()){
-			Node n = (Node) lsi.next();
-			ObjectNode destination = (ObjectNode) getGraphNode(graphNodeMap, n);
-			LocalToObjectEdge e1 = new LocalToObjectEdge(source, destination);
-			res.add(e1);
-			Iterator fsi = fieldSet.iterator();
-			while(fsi.hasNext()){
-				Node n2 = (Node) fsi.next();
-				ObjectNode fieldDestination = (ObjectNode) getGraphNode(graphNodeMap, n2);
-				FieldToObjectEdge e2 = new FieldToObjectEdge(destination, fieldDestination, fieldName);
-				res.add(e2);
+		if(typeName.length() > 0){
+			Map localMap = localPointsTo.get(typeName);
+			buildFromTypeMap(edgeSet, typeName, localMap, localName, fieldName);
+		}else{
+			Iterator tmi = localPointsTo.entrySet().iterator();
+			while(tmi.hasNext()){
+				Entry entry = (Entry) tmi.next();
+				String tpName = (String) entry.getKey();
+				Map localMap = (Map) entry.getValue();
+				buildFromTypeMap(edgeSet, tpName, localMap, localName, fieldName );
 			}
 		}
-		return res;
+		
+		return edgeSet;
 	}
 	
-	private SootGraphNode getGraphNode(Map graphNodeMap, Node node){
-		SootGraphNode res;
+	private void buildFromTypeMap(Set edgeSet, String typeName, Map localMap,
+			String localName, String fieldName) {
+
+		if(localName.length() > 0){
+			Set nodeSet = (Set) localMap.get(localName);
 		
-		if(graphNodeMap.containsKey(node))
-			res = (SootGraphNode) graphNodeMap.get(node);
-		else{
-			res = new ObjectNode(node);
-			graphNodeMap.put(node, res);
+			if(fieldName.length() > 0){
+				Set nodeSet2 = (Set) ((Map)((Map)fieldPointsTo.get(typeName)).get(localName)).get(fieldName);
+				buildFromLocalMap(edgeSet, localName, nodeSet, fieldName, nodeSet2);
+			}else{
+				Map fieldMap = (Map) fieldPointsTo.get(typeName).get(localName);
+				buildFromLocalMap(edgeSet, localName, nodeSet, fieldMap);
+			}
+		}else{
+			Iterator lmi = localMap.entrySet().iterator();
+			while(lmi.hasNext()){
+				Entry entry = (Entry) lmi.next();
+				String lcName = (String) entry.getKey();
+				Set nodeSet = (Set) entry.getValue();
+				
+				if(fieldName.length() > 0){
+					Set nodeSet2 = (Set) ((Map)((Map)fieldPointsTo.get(typeName)).get(lcName)).get(fieldName);
+					buildFromLocalMap(edgeSet, localName, nodeSet, fieldName, nodeSet2);
+				}else{
+					Map fieldMap = (Map) fieldPointsTo.get(typeName).get(lcName);
+					buildFromLocalMap(edgeSet, lcName, nodeSet, fieldMap);
+				}
+			}
 		}
-		return res;
+	}
+	
+	private void buildFromLocalMap(Set edgeSet, String localName, Set nodeSet, String fieldName, Set nodeSet2){
+		LocalNode source = new LocalNode(localName);
+		Iterator nsi = nodeSet.iterator();
+		while(nsi.hasNext()){
+			Node n = (Node) nsi.next();
+			ObjectNode obj = new ObjectNode(n);
+			LocalToObjectEdge e1 = new LocalToObjectEdge(source, obj);
+			edgeSet.add(e1);
+			
+			buildFromFieldMap(edgeSet, obj, nodeSet2, fieldName);
+		}
+	}
+	
+	private void buildFromLocalMap(Set edgeSet, String localName, Set nodeSet, Map fieldMap){
+		LocalNode source = new LocalNode(localName);
+		Iterator nsi = nodeSet.iterator();
+		while(nsi.hasNext()){
+			Node n = (Node) nsi.next();
+			ObjectNode obj = new ObjectNode(n);
+			LocalToObjectEdge e1 = new LocalToObjectEdge(source, obj);
+			edgeSet.add(e1);
+			
+			Iterator fmi = fieldMap.entrySet().iterator();
+			while(fmi.hasNext()){
+				Entry entry = (Entry) fmi.next();
+				String fieldName = (String) entry.getKey();
+				Set nodeSet2 = (Set) entry.getValue();
+				
+				buildFromFieldMap(edgeSet, obj, nodeSet2, fieldName);
+			}
+		}
+	}
+	
+	private void buildFromFieldMap(Set edgeSet, ObjectNode source, Set nodeSet, String fieldName){
+	
+		Iterator nsi = nodeSet.iterator();
+		while(nsi.hasNext()){
+			Node n = (Node) nsi.next();
+			ObjectNode dest = new ObjectNode(n);
+			FieldToObjectEdge e = new FieldToObjectEdge(source, dest, fieldName);
+			edgeSet.add(e);
+		}
 	}
 }

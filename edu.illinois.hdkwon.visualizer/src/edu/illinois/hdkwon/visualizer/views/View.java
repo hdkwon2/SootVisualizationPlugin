@@ -49,31 +49,19 @@ public class View extends ViewPart {
 		viewer.setContentProvider(new SootNodeContentProvider());
 		viewer.setConnectionStyle(ZestStyles.CONNECTIONS_DIRECTED);
 		model = new SPARKModelContentProvider(localPointsTo, fieldPointsTo);
-		viewer.setInput(model.buildFullGraph());
+		viewer.setInput(model.buildGraph("","","","",""));
 		LayoutAlgorithm layout = new SpringLayoutAlgorithm(LayoutStyles.NO_LAYOUT_NODE_RESIZING);
 		viewer.setLayoutAlgorithm(layout, true);
 		viewer.applyLayout();
 
-		shell.addListener(SWT.RESIZE, new Listener(){
-
-			@Override
-			public void handleEvent(Event event) {
-				FormData data = new FormData();
-				data.width = shell.getSize().x;
-				data.height = shell.getSize().y - 50;
-				comp.setLayoutData(data);
-				viewer.applyLayout();
-				System.out.println("REsized");
-			}
-			
-		});
 //		shell.setSize(800, 800);
 		shell.pack();
 		shell.open();
 	  }
 
 	public void buildGraph(String className, String methodName, String typeName, String localName, String fieldName){
-		Set edges = model.filterGraph(methodName, typeName, localName, fieldName);	
+		Set edges = null;
+		edges = model.buildGraph(className, methodName, typeName, localName, fieldName);
 		viewer.setInput(edges);
 		viewer.refresh();
 	}
@@ -96,7 +84,6 @@ public class View extends ViewPart {
 }*/
 
 	/** * Passing the focus request to the viewer's control. */
-
 	public void setFocus() {
 	}
 }

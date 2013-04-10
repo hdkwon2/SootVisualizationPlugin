@@ -1,15 +1,15 @@
 package edu.illinois.hdkwon.visualizer.views;
 
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Map.Entry;
 import java.util.Set;
 
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.events.SelectionListener;
-import org.eclipse.swt.layout.FormAttachment;
-import org.eclipse.swt.layout.FormData;
 import org.eclipse.swt.layout.RowLayout;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Combo;
@@ -42,11 +42,7 @@ public class FilterMenu {
 		rowLayout.marginHeight = 5;
 
 		composite = new Composite(view.shell, SWT.BAR);
-		composite.setLayout(rowLayout);
-		FormData data = new FormData();
-		//data.top = new FormAttachment(graph, 0 , SWT.DEFAULT);
-//		composite.setLayoutData(data);
-		
+		composite.setLayout(rowLayout);		
 	
 		classDropDown = new Combo(composite, SWT.DROP_DOWN | SWT.BORDER);
 		methodDropDown = new Combo(composite, SWT.DROP_DOWN | SWT.BORDER);
@@ -89,19 +85,6 @@ public class FilterMenu {
 			String type = (String) ti.next();
 			typeDropDown.add(type);
 		}
-		
-	
-		// textUser.forceFocus();
-
-//		Display display = shell.getDisplay();
-		// Set up the event loop.
-//		while (!shell.isDisposed()) {
-//			if (!display.readAndDispatch()) {
-//				// If no more entries in event queue
-//				display.sleep();
-//			}
-//		}
-
 	}
 
 	private void init() {
@@ -148,22 +131,9 @@ public class FilterMenu {
 			
 			switch(combo){
 			case FIELD_DROP_DOWN:
-				System.out.println(className +"."+methodName+"."+localName+"."+fieldName);
 				break;
 				
 			case LOCAL_DROP_DOWN:
-				menu.fieldDropDown.removeAll();
-				Set fields = null;
-				try{
-					fields = ((Map)((Map)menu.fieldPointsTo.get(typeName)).get(localName)).keySet();
-				}catch(NullPointerException excpetion){
-					break;
-				}
-				Iterator fi = fields.iterator();
-				while(fi.hasNext()){
-					String field = (String) fi.next();
-					menu.fieldDropDown.add(field);
-				}
 				break;
 				
 			case TYPE_DROP_DOWN:
@@ -175,6 +145,23 @@ public class FilterMenu {
 					String local = (String) li.next();
 					menu.localDropDown.add(local);
 				}
+				
+				Set fields = new HashSet();
+				try{
+					Iterator fpi = ((Map)menu.fieldPointsTo.get(typeName)).entrySet().iterator();
+					while(fpi.hasNext()){
+						Entry entry = (Entry) fpi.next();
+						Map fieldMap = (Map) entry.getValue();
+						fields.addAll(fieldMap.keySet());
+					}
+				}catch(NullPointerException exception){
+					break;
+				}
+				Iterator fi = fields.iterator();
+				while(fi.hasNext()){
+					String field = (String) fi.next();
+					menu.fieldDropDown.add(field);
+				}
 				break;
 				
 			case METHOD_DROP_DOWN:
@@ -183,8 +170,7 @@ public class FilterMenu {
 				
 			case CLASS_DROP_DOWN:
 				className = menu.classDropDown.getText();
-			}
-		
+			}		
 		}
 
 		@Override
