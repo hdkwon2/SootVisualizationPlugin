@@ -63,10 +63,6 @@ public class FilterMenu {
 				view.buildGraph(className, methodName, typeName, localName, fieldName);
 			}
 		});
-		
-		for (int i = 0; i < 3; i++) {
-			classDropDown.add("item " + i);
-		}
 
 		classDropDown.addSelectionListener(new DropDownSelectionEventListener(
 				this, DropDownSelectionEventListener.CLASS_DROP_DOWN));
@@ -79,11 +75,11 @@ public class FilterMenu {
 		fieldDropDown.addSelectionListener(new DropDownSelectionEventListener(
 				this, DropDownSelectionEventListener.FIELD_DROP_DOWN));
 
-		Set types = localPointsTo.keySet();
-		Iterator ti = types.iterator();
-		while(ti.hasNext()){
-			String type = (String) ti.next();
-			typeDropDown.add(type);
+		Set classes = localPointsTo.keySet();
+		Iterator ci = classes.iterator();
+		while(ci.hasNext()){
+			String cls = (String) ci.next();
+			classDropDown.add(cls);
 		}
 	}
 
@@ -139,7 +135,14 @@ public class FilterMenu {
 			case TYPE_DROP_DOWN:
 				menu.localDropDown.removeAll();
 				menu.fieldDropDown.removeAll();
-				Set locals = ((Map)menu.localPointsTo.get(typeName)).keySet();
+				Set locals;
+				try{
+				locals = ((Map) ((Map) ((Map) menu.localPointsTo
+						.get(className)).get(methodName)).get(typeName))
+						.keySet();
+				}catch(NullPointerException ne){
+					locals = new HashSet();
+				}
 				Iterator li = locals.iterator();
 				while(li.hasNext()){
 					String local = (String) li.next();
@@ -148,7 +151,9 @@ public class FilterMenu {
 				
 				Set fields = new HashSet();
 				try{
-					Iterator fpi = ((Map)menu.fieldPointsTo.get(typeName)).entrySet().iterator();
+					Iterator fpi = ((Map) ((Map) ((Map) menu.fieldPointsTo
+							.get(className)).get(methodName)).get(typeName))
+							.entrySet().iterator();
 					while(fpi.hasNext()){
 						Entry entry = (Entry) fpi.next();
 						Map fieldMap = (Map) entry.getValue();
@@ -165,11 +170,31 @@ public class FilterMenu {
 				break;
 				
 			case METHOD_DROP_DOWN:
-				methodName = menu.methodDropDown.getText();
+				menu.typeDropDown.removeAll();
+				menu.localDropDown.removeAll();
+				menu.fieldDropDown.removeAll();
+
+				Set types = ((Map) ((Map) menu.localPointsTo.get(className))
+						.get(methodName)).keySet();
+				Iterator ti = types.iterator();
+				while(ti.hasNext()){
+					String type = (String) ti.next();
+					menu.typeDropDown.add(type);
+				}
 				break;
 				
 			case CLASS_DROP_DOWN:
-				className = menu.classDropDown.getText();
+				menu.methodDropDown.removeAll();
+				menu.typeDropDown.removeAll();
+				menu.localDropDown.removeAll();
+				menu.fieldDropDown.removeAll();
+				
+				Set methods = ((Map) menu.localPointsTo.get(className)).keySet();
+				Iterator mi = methods.iterator();
+				while(mi.hasNext()){
+					String method = (String) mi.next();
+					menu.methodDropDown.add(method);
+				}
 			}		
 		}
 

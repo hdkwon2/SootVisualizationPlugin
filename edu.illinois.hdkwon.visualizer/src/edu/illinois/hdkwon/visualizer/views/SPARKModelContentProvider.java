@@ -24,61 +24,6 @@ public class SPARKModelContentProvider {
 	}
 	
 	/**
-	 * Builds the full graph representing given local and field points-to sets. 
-	 * @return Set of edges
-	 */
-/*	public Set<SootGraphEdge> buildFullGraph(){
-		Set<SootGraphEdge> edges = new HashSet<SootGraphEdge>();
-		Map<Node, ObjectNode> graphNodeMap = new HashMap<Node, ObjectNode>();
-		
-		Iterator mi1 = localPointsTo.entrySet().iterator();
-		while(mi1.hasNext()){
-			Entry<String, Map> e1 = (Entry)mi1.next();
-			String type = e1.getKey();
-			Map ptm = e1.getValue();
-			Iterator mi2 = ptm.entrySet().iterator();
-			while (mi2.hasNext()) {
-				Entry<String, Set> e2 = (Entry)mi2.next();
-				String localName = e2.getKey();
-				LocalNode localNode = new LocalNode(localName);
-				Map fpm = fieldPointsTo.get(type);
-				if(fpm != null){
-					fpm = (Map) fpm.get(localName);
-				}
-				Set pts = e2.getValue();
-				Iterator si = pts.iterator();
-				while(si.hasNext()){
-					Node node = (Node) si.next();
-					ObjectNode objNode = (ObjectNode) getGraphNode(graphNodeMap, node);
-		
-					LocalToObjectEdge edge = new LocalToObjectEdge(localNode, objNode);
-					edges.add(edge);
-					
-					if(fpm != null){
-						Iterator fpmi = fpm.entrySet().iterator();
-						while(fpmi.hasNext()){
-							Entry e3 = (Entry) fpmi.next();
-							String fieldName = (String) e3.getKey();
-							Set nodeSet = (Set)e3.getValue();
-							Iterator nodeSeti = nodeSet.iterator();
-							while(nodeSeti.hasNext()){
-								Node n = (Node) nodeSeti.next();
-								ObjectNode objNode2 = (ObjectNode) getGraphNode(graphNodeMap, n);
-								
-								FieldToObjectEdge edge2 = new FieldToObjectEdge(objNode, objNode2, fieldName);
-								edges.add(edge2);
-							}
-						}
-					}
-				}	
-			}
-		}
-		return edges;
-	}
-*/
-	
-	
-	/**
 	 * Filters points-to sets by 
 	 * @param methodName
 	 * @param typeName
@@ -88,33 +33,77 @@ public class SPARKModelContentProvider {
 			String typeName, String localName, String fieldName) {
 		Set edgeSet = new HashSet();
 		
-		if(typeName.length() > 0){
-			Map localMap = localPointsTo.get(typeName);
-			buildFromTypeMap(edgeSet, typeName, localMap, localName, fieldName);
+		if(className.length() > 0){
+			Map methodMap = localPointsTo.get(className);
+			Map fieldMethodMap = fieldPointsTo.get(className);
+			buildFromClassMap(edgeSet, methodMap, fieldMethodMap, methodName, typeName, localName, fieldName);
 		}else{
-			Iterator tmi = localPointsTo.entrySet().iterator();
-			while(tmi.hasNext()){
-				Entry entry = (Entry) tmi.next();
-				String tpName = (String) entry.getKey();
-				Map localMap = (Map) entry.getValue();
-				buildFromTypeMap(edgeSet, tpName, localMap, localName, fieldName );
+			Iterator lpti = localPointsTo.entrySet().iterator();
+			while(lpti.hasNext()){
+				Entry entry = (Entry) lpti.next();
+				String clsName = (String) entry.getKey();
+				Map methodMap = (Map) entry.getValue();
+				Map fieldMethodMap = (Map) fieldPointsTo.get(clsName);
+				buildFromClassMap(edgeSet, methodMap, fieldMethodMap, methodName, typeName, localName, fieldName );
 			}
 		}
 		
 		return edgeSet;
 	}
+
+	private void buildFromClassMap(Set edgeSet,
+			Map methodMap, Map fieldMethodMap, String methodName, String typeName,
+			String localName, String fieldName) {
+
+		if(methodName.length() > 0){
+			Map typeMap = (Map) methodMap.get(methodName);
+			Map fieldTypeMap = (Map) fieldMethodMap.get(methodName);
+			buildFromMethodMap(edgeSet, typeMap, fieldTypeMap, typeName, localName, fieldName);
+		}else{
+			Iterator mmi = methodMap.entrySet().iterator();
+			while(mmi.hasNext()){
+				Entry entry = (Entry) mmi.next();
+				String mtdName = (String) entry.getKey();
+				Map typeMap = (Map) entry.getValue();
+				Map fieldTypeMap = (Map) fieldMethodMap.get(mtdName);
+				buildFromMethodMap(edgeSet, typeMap, fieldTypeMap, typeName, localName, fieldName);
+			}
+		}
+	}
 	
-	private void buildFromTypeMap(Set edgeSet, String typeName, Map localMap,
+	private void buildFromMethodMap(Set edgeSet, Map typeMap, Map fieldTypeMap,
+			String typeName, String localName, String fieldName) {
+		
+		if(typeName.length() > 0){
+			Map localMap = (Map) typeMap.get(typeName);
+			Map fieldLocalMap = (Map) fieldTypeMap.get(typeName);
+			if(fieldLocalMap == null) fieldLocalMap = new HashMap();
+			buildFromTypeMap(edgeSet, localMap, fieldLocalMap, localName, fieldName);
+		}else{
+			Iterator tmi = typeMap.entrySet().iterator();
+			while(tmi.hasNext()){
+				Entry entry = (Entry) tmi.next();
+				String tpName = (String) entry.getKey();
+				Map localMap = (Map) entry.getValue();
+				Map fieldLocalMap = (Map) fieldTypeMap.get(tpName);
+				if(fieldLocalMap == null) fieldLocalMap = new HashMap();
+				buildFromTypeMap(edgeSet, localMap, fieldLocalMap,localName, fieldName );
+			}
+		}
+	}
+	
+	private void buildFromTypeMap(Set edgeSet, Map localMap, Map fieldLocalMap,
 			String localName, String fieldName) {
 
 		if(localName.length() > 0){
 			Set nodeSet = (Set) localMap.get(localName);
 		
 			if(fieldName.length() > 0){
-				Set nodeSet2 = (Set) ((Map)((Map)fieldPointsTo.get(typeName)).get(localName)).get(fieldName);
+				Set nodeSet2 = (Set) ((Map)fieldLocalMap.get(localName)).get(fieldName);
 				buildFromLocalMap(edgeSet, localName, nodeSet, fieldName, nodeSet2);
 			}else{
-				Map fieldMap = (Map) fieldPointsTo.get(typeName).get(localName);
+				Map fieldMap = (Map) fieldLocalMap.get(localName);
+				if(fieldMap == null) fieldMap = new HashMap();
 				buildFromLocalMap(edgeSet, localName, nodeSet, fieldMap);
 			}
 		}else{
@@ -125,10 +114,11 @@ public class SPARKModelContentProvider {
 				Set nodeSet = (Set) entry.getValue();
 				
 				if(fieldName.length() > 0){
-					Set nodeSet2 = (Set) ((Map)((Map)fieldPointsTo.get(typeName)).get(lcName)).get(fieldName);
+					Set nodeSet2 = (Set) ((Map)fieldLocalMap.get(lcName)).get(fieldName);
 					buildFromLocalMap(edgeSet, localName, nodeSet, fieldName, nodeSet2);
 				}else{
-					Map fieldMap = (Map) fieldPointsTo.get(typeName).get(lcName);
+					Map fieldMap = (Map) fieldLocalMap.get(lcName);
+					if(fieldMap == null) fieldMap = new HashMap();
 					buildFromLocalMap(edgeSet, lcName, nodeSet, fieldMap);
 				}
 			}

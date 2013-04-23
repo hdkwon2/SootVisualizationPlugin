@@ -47,6 +47,7 @@ public class View extends ViewPart {
 		viewer = new GraphViewer(comp , SWT.BORDER);
 
 		viewer.setContentProvider(new SootNodeContentProvider());
+		viewer.setLabelProvider(new SootGraphLabelProvider());
 		viewer.setConnectionStyle(ZestStyles.CONNECTIONS_DIRECTED);
 		model = new SPARKModelContentProvider(localPointsTo, fieldPointsTo);
 		viewer.setInput(model.buildGraph("","","","",""));

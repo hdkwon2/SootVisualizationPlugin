@@ -1,5 +1,4 @@
 package edu.illinois.hdkwon.visualizer.handlers;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -8,65 +7,40 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
-import soot.EntryPoints;
+import soot.ArrayType;
 import soot.Local;
 import soot.PointsToSet;
 import soot.Scene;
 import soot.SootClass;
 import soot.SootField;
 import soot.SootMethod;
-import soot.Type;
 import soot.Value;
 import soot.ValueBox;
 import soot.jimple.JimpleBody;
 import soot.jimple.Stmt;
-import soot.jimple.spark.SparkTransformer;
 import soot.jimple.spark.pag.Node;
 import soot.jimple.spark.sets.P2SetVisitor;
 import soot.jimple.spark.sets.PointsToSetInternal;
 import soot.options.Options;
 
+//type, local, field
 public class PointsToRunner {
 	
+	static{
+		soot.options.Options.v().set_keep_line_number(true);
+		soot.options.Options.v().set_whole_program(true);
+//		soot.options.Options.v().setPhaseOption("cg","verbose:false");
+		soot.options.Options.v().set_src_prec(Options.src_prec_java);
+	}
 	
 	private static Map localPointsTo;
 	private static Map fieldPointsTo;
 	
-	static SootClass sootClass;
-	
-	private static SootClass loadClass(String name, boolean main) {
-		SootClass c = Scene.v().loadClassAndSupport(name);
-		c.setApplicationClass();
-		if (main) Scene.v().setMainClass(c);
-		return c;
-	}
-	
 	public static void runAnalysis(String classPath, String dir, String mainClass) {
 	
-		// Set soot options
-		soot.options.Options.v().set_keep_line_number(true);
-		soot.options.Options.v().set_whole_program(true);
-		soot.options.Options.v().setPhaseOption("cg","verbose:false");
-		soot.options.Options.v().set_src_prec(Options.src_prec_java);
-		soot.options.Options.v().set_process_dir(Arrays.asList(new String[]{dir}));		
-		soot.options.Options.v().set_soot_classpath(classPath);
-				
-		sootClass = loadClass(mainClass, true);
-		soot.Scene.v().loadNecessaryClasses();
-		soot.Scene.v().setEntryPoints(EntryPoints.v().all());
-
-		setSparkPointsToAnalysis();
-
-		SootField f = getField("Container","item");
-		Map map = getLocals(sootClass, "go");
-		localPointsTo = new HashMap<String, Map>();
-		fieldPointsTo = getFieldPointsToSet(map);
-		Iterator mi = map.entrySet().iterator();
-		while(mi.hasNext()){
-			Entry entry = (Entry)mi.next();
-			String type = (String) entry.getKey();
-			localPointsTo.put(type, getPointsToSet((Set)entry.getValue()));
-		}
+		SPARKRunner.runSPARK(classPath, dir, mainClass);
+		Map ls = getLocals();
+		buildPointsTo(ls);
 	}
 	
 	public static Map getLocalPointsTo(){
@@ -75,89 +49,77 @@ public class PointsToRunner {
 	
 	public static Map getFieldPointsTo(){
 		return fieldPointsTo;
+	}	
+	
+	private static void buildPointsTo(Map ls){
+		fieldPointsTo = new HashMap();
+		localPointsTo = new HashMap();
+		Iterator lsi = ls.entrySet().iterator();
+		while(lsi.hasNext()){
+			Entry entry1 = (Entry) lsi.next();
+			String className = (String) entry1.getKey();
+			Map fieldMethodMap = new HashMap();
+			Map localMethodMap = new HashMap();
+			Map methodMap = (Map) entry1.getValue();
+			Iterator mmi = methodMap.entrySet().iterator();
+			while(mmi.hasNext()){
+				Entry entry2 = (Entry) mmi.next();
+				String methodName = (String) entry2.getKey();
+				Map typeMap = (Map) entry2.getValue();
+				Map fieldTypeMap = getFieldPointsToSet(typeMap);
+				fieldMethodMap.put(methodName, fieldTypeMap);
+				localMethodMap.put(methodName, getLocalPointsToSet(typeMap, fieldTypeMap));
+			}
+			fieldPointsTo.put(className, fieldMethodMap);
+			localPointsTo.put(className, localMethodMap);
+		}
 	}
 	
-	static void setSparkPointsToAnalysis() {
-		System.out.println("[spark] Starting analysis ...");
-				
-		HashMap opt = new HashMap();
-		opt.put("enabled","true");
-		opt.put("verbose","false");
-		opt.put("ignore-types","false");          
-		opt.put("force-gc","false");            
-		opt.put("pre-jimplify","false");          
-		opt.put("vta","false");                   
-		opt.put("rta","false");                   
-		opt.put("field-based","false");           
-		opt.put("types-for-sites","false");        
-		opt.put("merge-stringbuffer","true");   
-		opt.put("string-constants","false");     
-		opt.put("simulate-natives","true");      
-		opt.put("simple-edges-bidirectional","false");
-		opt.put("on-fly-cg","true");            
-		opt.put("simplify-offline","false");    
-		opt.put("simplify-sccs","true");        
-		opt.put("ignore-types-for-sccs","false");
-		opt.put("propagator","worklist");
-		opt.put("set-impl","double");
-		opt.put("double-set-old","hybrid");         
-		opt.put("double-set-new","hybrid");
-		opt.put("dump-html","false");           
-		opt.put("dump-pag","false");             
-		opt.put("dump-solution","false");        
-		opt.put("topo-sort","false");           
-		opt.put("dump-types","true");             
-		opt.put("class-method-var","true");     
-		opt.put("dump-answer","false");          
-		opt.put("add-tags","false");             
-		opt.put("set-mass","false"); 		
-		
-		SparkTransformer.v().transform("",opt);
-		
-		System.out.println("[spark] Done!");
-	}
-	
-
-	public static Map getPointsToSet(Set ls){
-
-		Map<String, Set> map = new HashMap<String, Set>();
-		
-		soot.PointsToAnalysis pta = Scene.v().getPointsToAnalysis();
-		Iterator mi = ls.iterator();
-		
-		while(mi.hasNext()){
-			final Local local = (Local) mi.next();
-			PointsToSet pts = pta.reachingObjects(local);
-			final Set<Node> set =new HashSet<Node>();
-			
-			((PointsToSetInternal)pts).forall(new P2SetVisitor() {
-				
-				@Override
-				public void visit(Node n) {
-					// TODO Auto-generated method stub
-					set.add(n);
-					System.out.println(local.getName() + ", "+n.getNumber());
-				}
-			});
-			System.out.println(local.getName() + ": " + set.size());
-			map.put(local.getName(), set);
+	private static Map getLocalPointsToSet(Map ls, Map fieldTypeMap){
+		Map res = new HashMap();
+		Iterator lsi = ls.entrySet().iterator();
+		while(lsi.hasNext()){
+			Entry entry = (Entry) lsi.next();
+			String typeName = (String) entry.getKey();
+			Set localSet = (Set) entry.getValue();
+			Map localMap = new HashMap();
+			Iterator lsi2 = localSet.iterator();
+			while(lsi2.hasNext()){
+				Local l = (Local) lsi2.next();
+				Set nodeSet = localToNodeSet(l, fieldTypeMap);
+				localMap.put(l.getName(), nodeSet);
+			}
+			res.put(typeName, localMap);
 		}
 		
-		return map;
+		return res;
 	}
 	
-	public static Map/* <className, Map<localName, Map<fieldName, Set<Node>>>>*/getFieldPointsToSet(
-			Map/* <String, Set> */ls) {
-		HashMap<String, Set> map = new HashMap<String, Set>();
-	soot.PointsToAnalysis pta = Scene.v().getPointsToAnalysis();
-		
+	private static SootClass getClassByName(String name){
 		Collection app = Scene.v().getApplicationClasses();
+		Iterator appi = app.iterator();
+		while(appi.hasNext()){
+			SootClass sc = (SootClass) appi.next();
+			if(sc.getName().equals(name)) return sc;
+		}
+		
+		return null;
+	}
+	
+	private static Map/* <className, Map<localName, Map<fieldName, Set<Node>>>>*/getFieldPointsToSet(
+			Map/* <String, Set> */ls) {
+		
+		HashMap<String, Set> map = new HashMap<String, Set>();
+		soot.PointsToAnalysis pta = Scene.v().getPointsToAnalysis();
+		
+		Collection app = Scene.v().getClasses();
+		
 		Iterator ci = app.iterator();
+
 		Map typeToLocal = new HashMap();
 		while (ci.hasNext()) {
 			SootClass sc = (SootClass)ci.next();
 			String className = sc.getName();
-			
 			Set s1 = (Set)ls.get(className);
 			if(s1 != null){
 				Map localToField = new HashMap();
@@ -168,7 +130,13 @@ public class PointsToRunner {
 					Iterator fi = sc.getFields().iterator();
 					while(fi.hasNext()){
 						SootField field = (SootField) fi.next();
-						PointsToSet pts = pta.reachingObjects(local, field);
+						PointsToSet pts;
+						try{
+						pts = pta.reachingObjects(local, field);
+						}catch(Exception e){
+							System.out.println(field.getName());
+							continue;
+						}
 						final Set nodeSet = new HashSet();
 						((PointsToSetInternal) pts).forall(new P2SetVisitor(){
 
@@ -198,7 +166,7 @@ public class PointsToRunner {
 		return -1;
 	}*/
 	
-	public static SootField getField(String classname, String fieldname) {
+	private static SootField getField(String classname, String fieldname) {
 		Collection app = Scene.v().getApplicationClasses();
 		Iterator ci = app.iterator();
 		while (ci.hasNext()) {
@@ -210,83 +178,82 @@ public class PointsToRunner {
 	}
 	
 
-	private static Map/*<String, Set<Local>>*/ getLocals(SootClass sc, String methodname) {
-		Map<String, Set<Local>> localMap = new HashMap<String, Set<Local>>();
-		Iterator mi = sc.getMethods().iterator();
-		int x = 0;
-		while (mi.hasNext()) {
-			SootMethod sm = (SootMethod)mi.next();
-			System.err.println(sm.getName());
-			if (sm.getName().equals(methodname) && sm.isConcrete()) {
-				JimpleBody jb = (JimpleBody)sm.retrieveActiveBody();
-				Iterator ui = jb.getUnits().iterator();
-				while (ui.hasNext()) {
-					Stmt s = (Stmt)ui.next();						
-					Iterator bi = s.getDefBoxes().iterator();
-					while (bi.hasNext()) {
-						Object o = bi.next();
-						if (o instanceof ValueBox) {
-							Value v = ((ValueBox)o).getValue();
-							if ( v instanceof Local){
-								String type = v.getType().toString();
-								if(localMap.containsKey(type)){
-									localMap.get(type).add((Local)v);
-								}else{
-									Set set = new HashSet();
-									set.add(v);
-									localMap.put(type, set);
-								}
-
-							}
-								
-						}
-					}					
-				}
-			}
-		}
+	private static Map/*<methodName, Map<typeName, Set<Local>>>*/ getLocals() {
+		Map classMap = new HashMap();
+		Collection classes = Scene.v().getApplicationClasses();
+		Iterator ci = classes.iterator();
 		
-		return localMap;
-	}
-	
-	public static void printLocalIntersects(Map/*<Integer,Local>*/ ls) {
-		soot.PointsToAnalysis pta = Scene.v().getPointsToAnalysis();
-		Iterator i1 = ls.entrySet().iterator();
-		while (i1.hasNext()) {
-			Map.Entry e1 = (Map.Entry)i1.next();
-			int p1 = ((Integer)e1.getKey()).intValue();
-			Local l1 = (Local)e1.getValue();
-			PointsToSet r1 = pta.reachingObjects(l1);
-			Iterator i2 = ls.entrySet().iterator();
-			while (i2.hasNext()) {
-				Map.Entry e2 = (Map.Entry)i2.next();
-				int p2 = ((Integer)e2.getKey()).intValue();
-				Local l2 = (Local)e2.getValue();
-				PointsToSet r2 = pta.reachingObjects(l2);
-				if (p1<=p2)
-					System.out.println("["+l1.getName()+","+l2.getName()+"]\t Container intersect? "+r1.hasNonEmptyIntersection(r2));
+		while (ci.hasNext()) {
+			SootClass sc = (SootClass) ci.next();
+			Map<String, Map> methodMap = new HashMap<String, Map>();
+			Iterator mi = sc.getMethods().iterator();
+
+			while (mi.hasNext()) {
+				SootMethod sm = (SootMethod) mi.next();
+				Map<String, Set<Local>> typeMap = new HashMap();
+				if (sm.isConcrete()) {
+					JimpleBody jb = (JimpleBody) sm.retrieveActiveBody();
+					Iterator ui = jb.getUnits().iterator();
+					while (ui.hasNext()) {
+						Stmt s = (Stmt) ui.next();
+						Iterator bi = s.getDefBoxes().iterator();
+						while (bi.hasNext()) {
+							Object o = bi.next();
+							if (o instanceof ValueBox) {
+								Value v = ((ValueBox) o).getValue();
+								if (v instanceof Local) {
+									Local l = (Local) v;
+									String type = l.getType().toString();
+									if (typeMap.containsKey(type)) {
+										typeMap.get(type).add(l);
+									} else {
+										Set set = new HashSet();
+										set.add(l);
+										typeMap.put(type, set);
+									}
+								}
+							}
+						}
+					}
+				}
+				methodMap.put(sm.getName(), typeMap);
 			}
+			classMap.put(sc.getName(), methodMap);
 		}
+		return classMap;
 	}
-	
-	
-	private static void printFieldIntersects(Map/*<Integer,Local>*/ ls, SootField f) {
-		soot.PointsToAnalysis pta = Scene.v().getPointsToAnalysis();
-		Iterator i1 = ls.entrySet().iterator();
-		while (i1.hasNext()) {
-			Map.Entry e1 = (Map.Entry)i1.next();
-			int p1 = ((Integer)e1.getKey()).intValue();
-			Local l1 = (Local)e1.getValue();
-			PointsToSet r1 = pta.reachingObjects(l1,f);
-			Iterator i2 = ls.entrySet().iterator();
-			while (i2.hasNext()) {
-				Map.Entry e2 = (Map.Entry)i2.next();
-				int p2 = ((Integer)e2.getKey()).intValue();
-				Local l2 = (Local)e2.getValue();
-				PointsToSet r2 = pta.reachingObjects(l2,f);	
-				if (p1<=p2)
-					System.out.println("["+p1+","+p2+"]\t Container.item intersect? "+r1.hasNonEmptyIntersection(r2));
+
+	private static Set localToNodeSet(final Local local, final Map fieldTypeMap){
+		final soot.PointsToAnalysis pta = Scene.v().getPointsToAnalysis();
+		final PointsToSet pts = pta.reachingObjects(local);
+		final Set<Node> set =new HashSet<Node>();
+		
+		((PointsToSetInternal)pts).forall(new P2SetVisitor() {
+			
+			@Override
+			public void visit(Node n) {
+				if(n.getType() instanceof ArrayType){
+					PointsToSet pts2 = pta.reachingObjectsOfArrayElement(pts);
+					final Set<Node> set2 = new HashSet();
+					((PointsToSetInternal)pts2).forall(new P2SetVisitor(){
+						@Override
+						public void visit(Node n) {
+
+							set2.add(n);
+						}
+						
+					});
+					Map localMap = (Map) fieldTypeMap.get(n.getType().toString());
+					if(localMap == null) localMap = new HashMap();
+					Map fieldMap = new HashMap();
+					fieldMap.put("element", set2);
+					localMap.put(local.getName(), fieldMap);
+					fieldTypeMap.put(n.getType().toString(), localMap);
+				}
+				set.add(n);
 			}
-		}
+		});
+
+		return set;
 	}
-	
 }
